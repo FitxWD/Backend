@@ -30,3 +30,7 @@ archive.zip
 .DS_Store
 
 .venv
+
+# Secrets
+.env
+serviceAccountKey.json
