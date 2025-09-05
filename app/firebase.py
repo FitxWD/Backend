@@ -1,8 +1,11 @@
 import os
+from dotenv import load_dotenv
 import firebase_admin
 from firebase_admin import credentials, firestore, auth
 
 # Load credentials from env
+load_dotenv()
+
 cred = credentials.Certificate(os.getenv("GOOGLE_APPLICATION_CREDENTIALS"))
 
 # Initialize only once

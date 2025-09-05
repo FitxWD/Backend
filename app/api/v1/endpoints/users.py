@@ -1,6 +1,8 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from app.services.user_service import UserService
 from typing import List, Dict, Any
+from app.deps.auth import verify_firebase_token
+from app.firebase import db
 
 router = APIRouter()
 user_service = UserService()
@@ -21,3 +23,14 @@ def get_user(user_id: int) -> Dict[str, Any]:
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user
+
+@router.get("/me")
+def me(user=Depends(verify_firebase_token)) -> Dict[str, Any]:
+    # user is decoded token; user["uid"] is the Firebase UID
+    return {"uid": user["uid"], "email": user.get("email")}
+
+@router.post("/profile")
+def upsert_profile(profile: Dict[str, Any], user=Depends(verify_firebase_token)):
+    uid = user["uid"]
+    db.collection("users").document(uid).set(profile, merge=True)
+    return {"ok": True}
