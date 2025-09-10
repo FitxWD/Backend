@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.services.user_service import UserService
 from typing import List, Dict, Any
 from app.deps.auth import verify_firebase_token
-from app.firebase import db
+from app.config import db
 from app.models import ProfileUpdate
 
 router = APIRouter()
