@@ -3,6 +3,7 @@ from app.services.user_service import UserService
 from typing import List, Dict, Any
 from app.deps.auth import verify_firebase_token
 from app.firebase import db
+from app.models import ProfileUpdate
 
 router = APIRouter()
 user_service = UserService()
@@ -33,4 +34,12 @@ def me(user=Depends(verify_firebase_token)) -> Dict[str, Any]:
 def upsert_profile(profile: Dict[str, Any], user=Depends(verify_firebase_token)):
     uid = user["uid"]
     db.collection("users").document(uid).set(profile, merge=True)
+    return {"ok": True}
+
+@router.post("/profile")
+def upsert_profile(profile: ProfileUpdate, user=Depends(verify_firebase_token)):
+    uid = user["uid"]
+    # Convert to dict and remove None values
+    profile_data = profile.dict(exclude_none=True)
+    db.collection("users").document(uid).set(profile_data, merge=True)
     return {"ok": True}

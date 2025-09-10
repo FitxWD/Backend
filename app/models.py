@@ -32,6 +32,7 @@ class User(BaseModel):
     email: str
     username: str
     role: Role = Role.user
+    preferences: Optional[List[str]] = []
     healthData: HealthData
 
 
@@ -79,6 +80,12 @@ class Feedback(BaseModel):
     message: str
     submittedAt: datetime
     status: str = "new"
+
+class ProfileUpdate(BaseModel):
+    gender: Optional[str] = Field(None, description="User gender")
+    age: Optional[int] = Field(None, gt=0, lt=120, description="Age in years")
+    weight: Optional[float] = Field(None, gt=0, description="Weight in kg")
+    height: Optional[float] = Field(None, gt=50, lt=300, description="Height in cm")
 
 class Config:
         # Ensures datetime is serialized as ISO 8601 string
