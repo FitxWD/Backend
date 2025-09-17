@@ -1,11 +1,13 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Body
 import tempfile
 import os
 from app.services.voice_service.stt import get_speech_service
-from app.services.voice_service.llm import get_language_model_service 
-from app.services.voice_service.tts import get_tts_service 
+from app.services.voice_service.llm_old import get_voice_llm_service
+from app.services.voice_service.tts import get_tts_service
 from app.utils.audio import audio_to_base64
 from app.config import ALLOWED_AUDIO_EXTENSIONS
+from app.services.rag_service.rag import get_rag_service
+from app.api.v1.schemas.query import QueryRequest
 
 router = APIRouter()
 
@@ -15,7 +17,7 @@ async def assistant(
 ):
     # Get service instances (already initialized)
     stt_service = get_speech_service()
-    llm_service = get_language_model_service()
+    llm_service = get_voice_llm_service()
     tts_service = get_tts_service()
     
     tmp_audio_path = None
@@ -74,3 +76,29 @@ async def assistant(
                 os.unlink(tmp_audio_path)
             except Exception as e:
                 print(f"Cleanup warning: {e}")
+
+@router.post("/rag/query")
+async def rag_query(request: QueryRequest):
+    try:
+        # Get RAG service using the singleton pattern
+        rag = get_rag_service()
+        result = rag.hybrid_rag_answer(query=request.query, top_k=request.top_k)
+        
+        # Determine if we got a real answer
+        if result["source"] == "none":
+            return {
+                "answer": result["answer"],
+                "source": "none",
+                "results_count": 0,
+                "status": "out_of_domain"
+            }
+        
+        return {
+            "answer": result["answer"],
+            "source": result["source"],
+            "results_count": len(result["results"]),
+            "status": "success"
+        }
+    except Exception as e:
+        print(f"RAG service error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"RAG service error: {str(e)}")
