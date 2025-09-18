@@ -120,7 +120,7 @@ class WorkoutPlan(BaseModel):
     description: str
     goals: List[str]
     level: str
-    durationMinutes: int
+    durationMinutes: Optional[int] = None
     weekly_template: List[DailyTemplate]
     micro_workouts: List[MicroWorkout]
     progression_4_weeks: List[str]
