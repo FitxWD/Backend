@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from typing import List, Dict, Any
 from app.deps.auth import verify_firebase_token
 from app.config import db
-from app.api.v1.schemas.user import ProfileUpdate, WorkoutPlan
+from app.api.v1.schemas.user import ProfileUpdate, WorkoutPlan, DietPlan
 
 router = APIRouter()
 
@@ -45,4 +45,22 @@ def get_workout_plan_details(plan_id: str):
     except Exception as e:
         # This will catch validation errors from Pydantic if the data in Firestore
         # ever mismatches the schema in a new, unexpected way.
+        raise HTTPException(status_code=500, detail=f"An error occurred processing the plan: {e}")
+    
+@router.get("/diet-plan/{plan_id}", response_model=DietPlan, response_model_exclude_none=True)
+def get_diet_plan_details(plan_id: str):
+    """
+    Fetches a single diet plan by its document ID from the 'dietPlans' collection.
+    Example plan_id: 'Balanced_1700'
+    """
+    try:
+        plan_ref = db.collection("dietPlans").document(plan_id)
+        plan_document = plan_ref.get()
+
+        if not plan_document.exists:
+            raise HTTPException(status_code=404, detail="Diet plan not found")
+
+        return plan_document.to_dict()
+
+    except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred processing the plan: {e}")
