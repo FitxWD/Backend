@@ -126,6 +126,35 @@ class WorkoutPlan(BaseModel):
     progression_4_weeks: List[str]
     personalization_rules: List[str]
 
+class MacroTargets(BaseModel):
+    carbs_g: int
+    protein_g: int
+    fat_g: int
+
+class AlternativeMeal(BaseModel):
+    name: str
+    approx_kcal: int
+
+class Meal(BaseModel):
+    name: str
+    description: str
+    ingredients: List[str]
+    approx_kcal: int
+    alternatives: List[AlternativeMeal]
+
+class DailyDiet(BaseModel):
+    day: int
+    meals: List[Meal]
+
+class DietPlan(BaseModel):
+    id: str
+    diet_type: str
+    calorie_range: str
+    macro_targets: MacroTargets
+    sodium_target_mg: int
+    notes: str
+    days: List[DailyDiet]
+
 class Config:
         # Ensures datetime is serialized as ISO 8601 string
         json_encoders = {
