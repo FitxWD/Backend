@@ -206,7 +206,7 @@ def extract_number(text: str) -> float:
     return float(numbers[0]) if numbers else 0
 
 def generate_diet_plan(user_answers: dict) -> dict:
-    """Generate diet plan using ML model prediction only"""
+    """Generate diet plan showing only ML model prediction number"""
     print(f"Generating diet plan with answers: {user_answers}")
     
     # Transform answers to model input format
@@ -239,10 +239,58 @@ def generate_diet_plan(user_answers: dict) -> dict:
     prediction = model.predict(input_df)[0]
     print(f"ML Model Prediction: {prediction}")
     
-    return prediction
+    # Return just the prediction number and basic info
+    return {
+        "ml_prediction": int(prediction),
+        "user_input_summary": {
+            "age": model_input['Age'],
+            "weight": model_input['Weight_kg'],
+            "height": model_input['Height_cm'],
+            "bmi": round(model_input['BMI'], 2),
+            "gender": "Female" if model_input['Gender_Female'] else "Male",
+            "calories": model_input['Calculated_Calorie_Intake']
+        },
+        "model_info": {
+            "model_type": str(type(model).__name__),
+            "features_count": len(encoded_columns)
+        }
+    }
 
-# Fitness plan generation 
+# Fitness plan generation (keep simple)
 def generate_fitness_plan(user_answers: dict) -> dict:
     """Generate fitness plan based on user answers"""
-    fitness_plan = "..."
-    return fitness_plan
+    return {
+        "workout_days_per_week": 3,
+        "workout_duration": "45 min",
+        "weekly_schedule": {
+            "monday": {"type": "Upper Body", "exercises": ["Push-ups", "Pull-ups"]},
+            "wednesday": {"type": "Cardio", "exercises": ["Running", "Cycling"]},
+            "friday": {"type": "Lower Body", "exercises": ["Squats", "Lunges"]}
+        },
+        "recommendations": ["Start with lighter weights", "Focus on proper form"]
+    }
+
+def format_plan_response(plan: dict, plan_type: str) -> str:
+    """Format plan dictionary into readable text"""
+    if plan_type == "diet":
+        response = f"""ML Model Prediction: {plan['ml_prediction']}
+
+User Profile:
+• Age: {plan['user_input_summary']['age']} years
+• Gender: {plan['user_input_summary']['gender']}
+• Weight: {plan['user_input_summary']['weight']} kg
+• Height: {plan['user_input_summary']['height']} cm
+• BMI: {plan['user_input_summary']['bmi']}
+• Calculated Calories: {plan['user_input_summary']['calories']}
+
+Model Information:
+• Model Type: {plan['model_info']['model_type']}
+• Features Used: {plan['model_info']['features_count']}"""
+        
+        if plan['prediction_probabilities']:
+            response += f"\n• Prediction Probabilities: {plan['prediction_probabilities']}"
+        
+        return response
+    
+    else:  # fitness
+        return f"""Fitness Plan: {plan['workout_days_per_week']} days per week"""
