@@ -287,9 +287,6 @@ Model Information:
 • Model Type: {plan['model_info']['model_type']}
 • Features Used: {plan['model_info']['features_count']}"""
         
-        if plan['prediction_probabilities']:
-            response += f"\n• Prediction Probabilities: {plan['prediction_probabilities']}"
-        
         return response
     
     else:  # fitness
