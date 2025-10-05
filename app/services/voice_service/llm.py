@@ -2,7 +2,7 @@ from google import genai
 from google.genai import types
 from fastapi import HTTPException
 from app.config import GOOGLE_API_KEY, GEMINI_TEXT_MODEL
-from .conversation import get_next_prompt, questions, conversation_state
+from .conversation import get_next_prompt
 
 # Global singleton instance
 _language_model_instance = None
@@ -19,38 +19,40 @@ class LanguageModelService:
     def is_available(self):
         return self.client is not None
 
-    def generate_response(self, user_text):
+    def generate_response(self, user_text, user_id="default", plan_type="diet"):
+        print(f"LLM generate_response called with plan_type: {plan_type}")
+        
         def llm_answer_func(user_text, current_question):
             return answer_side_question(user_text, current_question, self.client, GEMINI_TEXT_MODEL)
 
-        reply_text = get_next_prompt(user_text, llm_answer_func=llm_answer_func)
+        reply_text = get_next_prompt(
+            user_text, 
+            user_id=user_id, 
+            plan_type=plan_type, 
+            llm_answer_func=llm_answer_func
+        )
         print(f"Assistant reply (flow): {reply_text}")
-
-        if reply_text == "Thanks! I have all the information I need. I’ll now generate your diet recommendation plan.":
-            pass
-
         return reply_text
         
 def answer_side_question(user_text, current_question, client, model):
-        prompt = (
-            f"The user asked a question about the following intake prompt:\n"
-            f"Prompt: {current_question}\n"
-            f"User's question: {user_text}\n"
-            "Answer the user's question in a friendly, concise way (max 2 sentences)."
-        )
-        try:
-            response = client.models.generate_content(
-                model=model,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    thinking_config=types.ThinkingConfig(thinking_budget=0)
-                )
+    prompt = (
+        f"The user asked a question about the following intake prompt:\n"
+        f"Prompt: {current_question}\n"
+        f"User's question: {user_text}\n"
+        "Answer the user's question in a friendly, concise way (max 2 sentences)."
+    )
+    try:
+        response = client.models.generate_content(
+            model=model,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                thinking_config=types.ThinkingConfig(thinking_budget=0)
             )
-            return response.text.strip() if response.text else "Sorry, I don't know."
-        except Exception as e:
-            print(f"Gemini error (side question): {e}")
-            return "Sorry, I couldn't answer that."
-            
+        )
+        return response.text.strip() if response.text else "Sorry, I don't know."
+    except Exception as e:
+        print(f"Gemini error (side question): {e}")
+        return "Sorry, I couldn't answer that."
 
 # Singleton getter function
 def get_language_model_service():
