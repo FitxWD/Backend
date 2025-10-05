@@ -37,10 +37,10 @@ def test_assistant_success_flow(client, mocker): # Add 'client' fixture
     response = client.post("/api/v1/endpoints/assistant", data=data, files=files)
 
     # 3. ASSERT: Verify the response
-    assert response.status_code == 404
+    assert response.status_code == 200
     response_data = response.json()
-    #assert response_data["user_text"] == "hello world"
-    #assert response_data["reply"] == "This is the AI's reply."
+    assert response_data["user_text"] == "hello world"
+    assert response_data["reply"] == "This is the AI's reply."
 
 
 # --- Test Cases for the /generate-plan Endpoint ---
@@ -62,9 +62,9 @@ def test_generate_plan_success(client, mocker):
     }
     response = client.post("/api/v1/endpoints/assistant/generate-plan", json=payload)
 
-    assert response.status_code == 404
+    assert response.status_code == 200
     response_data = response.json()
-    #assert response_data["plan"] == {"stored_plan_key": "stored_plan_value"}
+    assert response_data["plan"] == {"stored_plan_key": "stored_plan_value"}
 
 
 # --- Test Cases for the /reset-conversation Endpoint ---
@@ -75,8 +75,8 @@ def test_reset_conversation_success(client, mocker):
     payload = {"user_id": "test-user-123", "plan_type": "fitness"}
     response = client.post("/api/v1/endpoints/assistant/reset-conversation", json=payload)
 
-    assert response.status_code == 404
-    #mock_reset.assert_called_once_with("test-user-123", "fitness")
+    assert response.status_code == 200
+    mock_reset.assert_called_once_with("test-user-123", "fitness")
 
 
 # --- Test Cases for the /rag/query Endpoint ---
@@ -89,14 +89,14 @@ def test_rag_query_success(client, mocker):
     
     payload = {"query": "how do I do squats?"}
     response = client.post("/api/v1/endpoints/assistant/rag/query", json=payload)
-    assert response.status_code == 404
+    assert response.status_code == 200
     response_data = response.json()
-    #assert response_data["answer"] == "This is a RAG answer."
+    assert response_data["answer"] == "This is a RAG answer."
 
 # Don't forget to include the invalid plan type test, it's a good one to keep
 def test_assistant_invalid_plan_type():
     files = {'file': ('test.webm', b'content', 'audio/webm')}
     data = {"planType": "invalid_plan"}
     response = requests.post(f"{BACKEND_API_URL}/api/v1/endpoints/assistant", data=data, files=files)
-    assert response.status_code == 404
-    #assert response.json()["detail"] == "planType must be 'diet' or 'fitness'"
+    assert response.status_code == 400
+    assert response.json()["detail"] == "planType must be 'diet' or 'fitness'"
