@@ -7,18 +7,13 @@ from app.services.voice_service.tts import get_tts_service
 from app.utils.audio import audio_to_base64
 from app.config import ALLOWED_AUDIO_EXTENSIONS
 from app.services.rag_service.rag import get_rag_service
-from app.api.v1.schemas.query import QueryRequest
+from app.api.v1.schemas.query import QueryRequest, PlanRequest
 from app.services.voice_service.plan_generator import generate_diet_plan, generate_fitness_plan
 from app.services.voice_service.conversation import reset_conversation, get_user_answers
-from pydantic import BaseModel
-from typing import Optional
+
+from app.utils.plan_utils import store_user_diet_plan
 
 router = APIRouter()
-
-# Add new schema for plan generation
-class PlanRequest(BaseModel):
-    user_answers: dict
-    plan_type: str  # "diet" or "fitness"
 
 @router.post("/assistant")
 async def assistant(
@@ -101,7 +96,7 @@ async def assistant(
 
 @router.post("/generate-plan")
 async def generate_plan(request: PlanRequest):
-    """Generate diet or fitness plan from form submission answers"""
+    """Generate diet or fitness plan from form submission answers and store in database"""
     try:
         # Validate plan_type
         if request.plan_type not in ["diet", "fitness"]:
@@ -114,8 +109,15 @@ async def generate_plan(request: PlanRequest):
         # Generate plan based on type
         if request.plan_type == "diet":
             plan = generate_diet_plan(request.user_answers)
+            # Store plan and get updated data
+            try:
+                plan = store_user_diet_plan(request.user_id, plan)
+            except ValueError as e:
+                raise HTTPException(status_code=404, detail=str(e))
         else:  # fitness
             plan = generate_fitness_plan(request.user_answers)
+        
+        print(f"Generated {request.plan_type} plan: {plan}")
         
         return {
             "plan": plan,
@@ -148,7 +150,6 @@ async def reset_user_conversation(
         print(f"Reset conversation error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Reset conversation error: {str(e)}")
 
-# ...existing rag endpoint...
 @router.post("/rag/query")
 async def rag_query(request: QueryRequest):
     try:
