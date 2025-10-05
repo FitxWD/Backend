@@ -43,33 +43,8 @@ def upsert_profile(profile: ProfileUpdate, user=Depends(verify_firebase_token)):
     db.collection("users").document(uid).set(profile_data, merge=True)
     return {"ok": True}
 
-@router.get("/workout-plan/{plan_id}", response_model=WorkoutPlan, response_model_exclude_none=True)
-def get_workout_plan_details(plan_id: str):
-    """
-    Fetches a single workout plan by its document ID from Firestore.
-    The refined 'WorkoutPlan' response_model ensures data integrity.
-    'response_model_exclude_none=True' is a good practice to not send null fields in the JSON response.
-    """
-    try:
-        plan_ref = db.collection("workoutPlans").document(plan_id)
-        plan_document = plan_ref.get()
-
-        if not plan_document.exists:
-            raise HTTPException(status_code=404, detail="Workout plan not found")
-
-        return plan_document.to_dict()
-
-    except Exception as e:
-        # This will catch validation errors from Pydantic if the data in Firestore
-        # ever mismatches the schema in a new, unexpected way.
-        raise HTTPException(status_code=500, detail=f"An error occurred processing the plan: {e}")
-    
 @router.get("/diet-plan/{plan_id}", response_model=DietPlan, response_model_exclude_none=True)
 def get_diet_plan_details(plan_id: str):
-    """
-    Fetches a single diet plan by its document ID from the 'dietPlans' collection.
-    Example plan_id: 'Balanced_1700'
-    """
     try:
         plan_ref = db.collection("dietPlans").document(plan_id)
         plan_document = plan_ref.get()
@@ -79,9 +54,32 @@ def get_diet_plan_details(plan_id: str):
 
         return plan_document.to_dict()
 
+    # --- THIS IS THE FIX ---
+    # First, catch the specific HTTPException and just let it pass through.
+    except HTTPException:
+        raise
+    # Then, catch any other unexpected errors and correctly label them as 500.
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"An error occurred processing the plan: {e}")
+        raise HTTPException(status_code=500, detail=f"An unexpected server error occurred: {e}")
 
+
+@router.get("/workout-plan/{plan_id}", response_model=WorkoutPlan, response_model_exclude_none=True)
+def get_workout_plan_details(plan_id: str):
+    try:
+        plan_ref = db.collection("workoutPlans").document(plan_id)
+        plan_document = plan_ref.get()
+
+        if not plan_document.exists:
+            raise HTTPException(status_code=404, detail="Workout plan not found")
+
+        return plan_document.to_dict()
+        
+    # --- APPLY THE SAME FIX HERE ---
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"An unexpected server error occurred: {e}")
+    
 @router.post("/accept-plan")
 def accept_plan(request: PlanAcceptanceRequest, user=Depends(verify_firebase_token)):
     """

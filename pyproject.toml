@@ -1,0 +1,14 @@
+# backend/pyproject.toml
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wellness-assistant-backend"
+version = "0.1.0"
+
+
+# Explicitly tell setuptools where to find the source code.
+[tool.setuptools]
+packages = ["app"]
