@@ -39,9 +39,10 @@ def get_user_health_data(user_id: str, user=Depends(verify_firebase_token)):
 @router.post("/profile-health-update")
 def upsert_profile(profile: ProfileUpdate, user=Depends(verify_firebase_token)):
     uid = user["uid"]
+    # Convert model to dict and save all fields
     profile_data = profile.dict(exclude_none=True)
     db.collection("users").document(uid).set(profile_data, merge=True)
-    return {"ok": True}
+    return {"status": "success"}
 
 @router.get("/workout-plan/{plan_id}", response_model=WorkoutPlan, response_model_exclude_none=True)
 def get_workout_plan_details(plan_id: str):

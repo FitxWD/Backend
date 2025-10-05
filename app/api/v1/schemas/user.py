@@ -11,6 +11,8 @@ class HealthData(BaseModel):
 
 class ProfileUpdate(BaseModel):
     healthData: HealthData
+    is_test_user: Optional[bool] = Field(None, description="Flag to mark test users")
+    created_at: Optional[str] = None
 
 # All fields that aren't 'name' are optional
 class Exercise(BaseModel):
