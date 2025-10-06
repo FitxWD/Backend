@@ -1,0 +1,8 @@
+jupyter
+ipykernel
+numpy
+pandas
+scikit-learn==1.7.2
+xgboost==2.0.3
+lightgbm==4.4.0
+joblib
