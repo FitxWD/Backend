@@ -5,21 +5,20 @@ from app.services.voice_service.stt import get_speech_service
 from app.services.voice_service.llm import get_language_model_service as get_voice_llm_service
 from app.services.voice_service.tts import get_tts_service
 from app.utils.audio import audio_to_base64
-from app.config import ALLOWED_AUDIO_EXTENSIONS
+from app.config import ALLOWED_AUDIO_EXTENSIONS, db
 from app.services.rag_service.rag import get_rag_service
 from app.api.v1.schemas.query import QueryRequest, PlanRequest
 from app.services.voice_service.plan_generator import generate_diet_plan, generate_fitness_plan
 from app.services.voice_service.conversation import reset_conversation, get_user_answers
-
-from app.utils.plan_utils import store_user_diet_plan
+from app.utils.plan_utils import store_user_diet_plan, store_user_fitness_plan
 
 router = APIRouter()
 
 @router.post("/assistant")
 async def assistant(
     file: UploadFile = File(...),
-    planType: str = Form("diet"),  # Changed from plan_type to planType to match frontend
-    user_id: str = Form("default")  # Add user_id support
+    planType: str = Form("diet"),
+    user_id: str = Form("default")
 ):
     # Get service instances (already initialized)
     stt_service = get_speech_service()
@@ -30,7 +29,7 @@ async def assistant(
     
     try:
         # Convert planType to plan_type for internal use
-        plan_type = planType.lower()  # Ensure lowercase
+        plan_type = planType.lower()
         print(f"Received planType: {planType}, using plan_type: {plan_type}")
         
         # Validate plan_type
@@ -74,8 +73,8 @@ async def assistant(
             "user_text": user_text,
             "reply": reply_text,
             "audio_base64": audio_base64,
-            "plan_type": plan_type,  # Return as plan_type for consistency
-            "planType": planType,    # Also return original planType for frontend
+            "plan_type": plan_type,
+            "planType": planType,
             "user_id": user_id,
             "status": "success",
         }
@@ -98,6 +97,11 @@ async def assistant(
 async def generate_plan(request: PlanRequest):
     """Generate diet or fitness plan from form submission answers and store in database"""
     try:
+        print(f"Received generate-plan request: {request}")
+        print(f"Plan type: {request.plan_type}")
+        print(f"User ID: {request.user_id}")
+        print(f"User answers: {request.user_answers}")
+        
         # Validate plan_type
         if request.plan_type not in ["diet", "fitness"]:
             raise HTTPException(status_code=400, detail="plan_type must be 'diet' or 'fitness'")
@@ -108,16 +112,32 @@ async def generate_plan(request: PlanRequest):
         
         # Generate plan based on type
         if request.plan_type == "diet":
+            print("Generating diet plan...")
             plan = generate_diet_plan(request.user_answers)
+            print(f"Diet plan generated: {plan}")
+            
             # Store plan and get updated data
-            try:
-                plan = store_user_diet_plan(request.user_id, plan)
-            except ValueError as e:
-                raise HTTPException(status_code=404, detail=str(e))
+            if request.user_id and request.user_id != "default":
+                try:
+                    plan = store_user_diet_plan(request.user_id, plan)
+                    print(f"Diet plan stored for user {request.user_id}")
+                except Exception as e:
+                    print(f"Error storing diet plan: {e}")
+                    # Continue without storing if there's an error
+            
         else:  # fitness
+            print("Generating fitness plan...")
             plan = generate_fitness_plan(request.user_answers)
-        
-        print(f"Generated {request.plan_type} plan: {plan}")
+            print(f"Fitness plan generated: {plan}")
+            
+            # Store plan and get updated data
+            if request.user_id and request.user_id != "default":
+                try:
+                    plan = store_user_fitness_plan(request.user_id, plan)
+                    print(f"Fitness plan stored for user {request.user_id}")
+                except Exception as e:
+                    print(f"Error storing fitness plan: {e}")
+                    # Continue without storing if there's an error
         
         return {
             "plan": plan,
@@ -129,6 +149,8 @@ async def generate_plan(request: PlanRequest):
         raise
     except Exception as e:
         print(f"Plan generation error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Plan generation error: {str(e)}")
 
 @router.post("/reset-conversation")
