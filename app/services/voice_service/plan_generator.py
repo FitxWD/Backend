@@ -34,6 +34,34 @@ def get_diet_model():
         _diet_model = load_diet_model()
     return _diet_model
 
+def load_fitness_model():
+    """Load the saved fitness prediction model"""
+    model_path = "models/fitness_model.joblib"
+    
+    try:
+        if os.path.exists(model_path):
+            print(f"Trying to load fitness model from: {model_path}")
+            model = joblib.load(model_path)
+            print(f"Fitness model loaded successfully from: {model_path}")
+            print(f"Model type: {type(model)}")
+            return model
+        else:
+            print(f"Fitness model file not found: {model_path}")
+            return None
+                
+    except Exception as e:
+        print(f"Error loading fitness model from {model_path}: {e}")
+        return None
+
+# Global fitness model instance
+_fitness_model = None
+
+def get_fitness_model():
+    global _fitness_model
+    if _fitness_model is None:
+        _fitness_model = load_fitness_model()
+    return _fitness_model
+
 def transform_diet_answers_to_model_input(user_answers: dict) -> dict:
     """Transform user answers to match the diet model's expected input format"""
     
@@ -190,6 +218,176 @@ def transform_diet_answers_to_model_input(user_answers: dict) -> dict:
     print(f"Final transformed features: {features}")
     return features
 
+def transform_fitness_answers_to_model_input(user_answers: dict) -> dict:
+    """Transform user answers to match the fitness model's expected input format"""
+    
+    # Initialize the feature dictionary with all columns set to 0
+    encoded_columns = [
+        'age', 'height_cm', 'weight_kg', 'bmi', 'duration_minutes', 'intensity',
+        'calories_burned', 'daily_steps', 'resting_heart_rate',
+        'blood_pressure_systolic', 'blood_pressure_diastolic',
+        'endurance_level', 'sleep_hours', 'stress_level', 'hydration_level',
+        'fitness_level', 'gender_F', 'gender_M', 'smoking_status_Current',
+        'smoking_status_Former', 'health_condition_Asthma',
+        'health_condition_Diabetes', 'health_condition_Hypertension'
+    ]
+    
+    # Initialize all features to 0
+    features = {col: 0 for col in encoded_columns}
+    
+    print(f"Debug - Input fitness answers: {user_answers}")
+    
+    # Extract and transform answers based on fitness questions (Q0-Q16)
+    
+    # Q0: Age - "First, may I know your age?"
+    age = extract_number(user_answers.get("Q0", "25"))
+    features['age'] = age
+    print(f"Debug - Age: {age}")
+    
+    # Q1: Gender - "What is your gender? (Male, Female, or Other)"
+    gender = user_answers.get("Q1", "").lower()
+    if "female" in gender:
+        features['gender_F'] = 1
+        features['gender_M'] = 0
+    elif "male" in gender:
+        features['gender_M'] = 1
+        features['gender_F'] = 0
+    else:  # Other or unknown, default to male
+        features['gender_M'] = 1
+        features['gender_F'] = 0
+    print(f"Debug - Gender: {gender}, Female: {features['gender_F']}, Male: {features['gender_M']}")
+    
+    # Q2: Height - "Could you tell me your height in centimeters?"
+    height = extract_number(user_answers.get("Q2", "170"))
+    features['height_cm'] = height
+    print(f"Debug - Height: {height}")
+    
+    # Q3: Weight - "And your weight in kilograms?"
+    weight = extract_number(user_answers.get("Q3", "70"))
+    features['weight_kg'] = weight
+    print(f"Debug - Weight: {weight}")
+    
+    # Calculate BMI
+    height_m = height / 100
+    bmi = weight / (height_m ** 2) if height_m > 0 else 25
+    features['bmi'] = bmi
+    print(f"Debug - BMI: {bmi}")
+    
+    # Q4: Sleep hours - "How many hours of sleep do you usually get per day?"
+    sleep_hours = extract_number(user_answers.get("Q4", "8"))
+    features['sleep_hours'] = sleep_hours
+    print(f"Debug - Sleep hours: {sleep_hours}")
+    
+    # Q5: Water intake - "How many litres of water do you usually drink in a day?"
+    water_intake = extract_number(user_answers.get("Q5", "2"))
+    features['hydration_level'] = water_intake
+    print(f"Debug - Water intake: {water_intake}")
+    
+    # Q6: Daily steps - "How many steps do you usually take in a day?"
+    daily_steps = extract_number(user_answers.get("Q6", "8000"))
+    features['daily_steps'] = daily_steps
+    print(f"Debug - Daily steps: {daily_steps}")
+    
+    # Q7: Resting heart rate - "What's your resting heart rate (in beats per minute)?"
+    resting_hr = extract_number(user_answers.get("Q7", "70"))
+    features['resting_heart_rate'] = resting_hr if resting_hr > 0 else 70
+    print(f"Debug - Resting HR: {resting_hr}")
+    
+    # Q8: Systolic BP - "What's your systolic blood pressure? (the higher number, e.g., 120)"
+    systolic_bp = extract_number(user_answers.get("Q8", "120"))
+    features['blood_pressure_systolic'] = systolic_bp if systolic_bp > 0 else 120
+    print(f"Debug - Systolic BP: {systolic_bp}")
+    
+    # Q9: Diastolic BP - "What's your diastolic blood pressure? (the lower number, e.g., 80)"
+    diastolic_bp = extract_number(user_answers.get("Q9", "80"))
+    features['blood_pressure_diastolic'] = diastolic_bp if diastolic_bp > 0 else 80
+    print(f"Debug - Diastolic BP: {diastolic_bp}")
+    
+    # Q10: Fitness level - "How would you describe your overall fitness level — beginner, intermediate, or advanced?"
+    fitness_level = user_answers.get("Q10", "").lower()
+    if "beginner" in fitness_level:
+        features['fitness_level'] = 0
+    elif "intermediate" in fitness_level:
+        features['fitness_level'] = 1
+    elif "advanced" in fitness_level:
+        features['fitness_level'] = 2
+    else:
+        features['fitness_level'] = 0  # Default to beginner
+    print(f"Debug - Fitness level: {fitness_level}, mapped to: {features['fitness_level']}")
+    
+    # Q11: Workout duration - "Have you done any workouts? If so, on average, how long do your workout sessions last? (in minutes)"
+    workout_duration = extract_number(user_answers.get("Q11", "30"))
+    features['duration_minutes'] = workout_duration
+    print(f"Debug - Workout duration: {workout_duration}")
+    
+    # Q12: Workout intensity - "How would you describe your workout intensity — low, moderate, or high?"
+    intensity = user_answers.get("Q12", "").lower()
+    if "low" in intensity:
+        features['intensity'] = 0
+    elif "moderate" in intensity:
+        features['intensity'] = 1
+    elif "high" in intensity:
+        features['intensity'] = 2
+    else:
+        features['intensity'] = 1  # Default to moderate
+    print(f"Debug - Intensity: {intensity}, mapped to: {features['intensity']}")
+    
+    # Q13: Endurance level - "How would you rate your endurance level — low, average, or high?"
+    endurance = user_answers.get("Q13", "").lower()
+    if "low" in endurance:
+        features['endurance_level'] = 0
+    elif "average" in endurance:
+        features['endurance_level'] = 1
+    elif "high" in endurance:
+        features['endurance_level'] = 2
+    else:
+        features['endurance_level'] = 1  # Default to average
+    print(f"Debug - Endurance: {endurance}, mapped to: {features['endurance_level']}")
+    
+    # Q14: Stress level - "On a scale of 1–10, how would you rate your current stress level?"
+    stress_level = extract_number(user_answers.get("Q14", "5"))
+    features['stress_level'] = stress_level if 1 <= stress_level <= 10 else 5
+    print(f"Debug - Stress level: {stress_level}")
+    
+    # Q15: Smoking status - "What's your smoking status — current smoker, former smoker, or non-smoker?"
+    smoking = user_answers.get("Q15", "").lower()
+    if "current" in smoking:
+        features['smoking_status_Current'] = 1
+        features['smoking_status_Former'] = 0
+    elif "former" in smoking:
+        features['smoking_status_Former'] = 1
+        features['smoking_status_Current'] = 0
+    else:  # Non-smoker or other
+        features['smoking_status_Current'] = 0
+        features['smoking_status_Former'] = 0
+    print(f"Debug - Smoking: {smoking}, Current: {features['smoking_status_Current']}, Former: {features['smoking_status_Former']}")
+    
+    # Q16: Health conditions - "Do you have any of the following health conditions such as Asthma, Diabetes, Hypertension, or None of the above?"
+    conditions = user_answers.get("Q16", "").lower()
+    if "asthma" in conditions:
+        features['health_condition_Asthma'] = 1
+    if "diabetes" in conditions:
+        features['health_condition_Diabetes'] = 1
+    if "hypertension" in conditions or "blood pressure" in conditions:
+        features['health_condition_Hypertension'] = 1
+    print(f"Debug - Health conditions: {conditions}")
+    
+    # Calculate estimated calories burned based on fitness data
+    # Basic METs calculation for moderate activity
+    if features['duration_minutes'] > 0:
+        # Estimate METs based on intensity: low=3, moderate=5, high=8
+        mets = {0: 3, 1: 5, 2: 8}.get(features['intensity'], 5)
+        # Calories = METs × weight (kg) × time (hours)
+        hours = features['duration_minutes'] / 60
+        estimated_calories = mets * features['weight_kg'] * hours
+        features['calories_burned'] = int(estimated_calories)
+    else:
+        features['calories_burned'] = 0
+    
+    print(f"Debug - Estimated calories burned: {features['calories_burned']}")
+    print(f"Final transformed fitness features: {features}")
+    return features
+
 def extract_number(text: str) -> float:
     """Extract numeric value from text"""
     import re
@@ -248,7 +446,36 @@ def generate_diet_plan(user_answers: dict) -> dict:
             "height": model_input['Height_cm'],
             "bmi": round(model_input['BMI'], 2),
             "gender": "Female" if model_input['Gender_Female'] else "Male",
-            "calories": model_input['Calculated_Calorie_Intake']
+            "calories": model_input['Calculated_Calorie_Intake'],
+            # Additional attributes
+            "severity": ["Mild", "Moderate", "Severe"][model_input['Severity']],
+            "activity_level": ["Sedentary", "Moderate", "Active"][model_input['Physical_Activity_Level']],
+            "cholesterol": model_input['Cholesterol_mg/dL'],
+            "blood_pressure": model_input['Blood_Pressure_mmHg'],
+            "glucose": model_input['Glucose_mg/dL'],
+            "exercise_hours": model_input['Weekly_Exercise_Hours'],
+            "health_conditions": {
+                "diabetes": bool(model_input['Disease_Type_Diabetes']),
+                "hypertension": bool(model_input['Disease_Type_Hypertension']),
+                "obesity": bool(model_input['Disease_Type_Obesity'])
+            },
+            "dietary_restrictions": {
+                "low_sodium": bool(model_input['Dietary_Restrictions_Low_Sodium']),
+                "low_sugar": bool(model_input['Dietary_Restrictions_Low_Sugar'])
+            },
+            "allergies": {
+                "gluten": bool(model_input['Allergies_Gluten']),
+                "peanuts": bool(model_input['Allergies_Peanuts'])
+            },
+            "cuisine_preference": next(
+                (cuisine for cuisine, value in {
+                    "Chinese": model_input['Preferred_Cuisine_Chinese'],
+                    "Indian": model_input['Preferred_Cuisine_Indian'],
+                    "Italian": model_input['Preferred_Cuisine_Italian'],
+                    "Mexican": model_input['Preferred_Cuisine_Mexican']
+                }.items() if value),
+                "None"
+            )
         },
         "model_info": {
             "model_type": str(type(model).__name__),
@@ -256,18 +483,75 @@ def generate_diet_plan(user_answers: dict) -> dict:
         }
     }
 
-# Fitness plan generation (keep simple)
 def generate_fitness_plan(user_answers: dict) -> dict:
-    """Generate fitness plan based on user answers"""
+    """Generate fitness plan showing only ML model prediction number"""
+    print(f"Generating fitness plan with answers: {user_answers}")
+    
+    # Transform answers to model input format
+    model_input = transform_fitness_answers_to_model_input(user_answers)
+    
+    # Load the ML model - if it fails, return error instead of fallback
+    model = get_fitness_model()  # You'll need to create this function similar to get_diet_model()
+    if model is None:
+        raise Exception("ML fitness model not available - cannot generate fitness plan")
+    
+    # Prepare input for prediction
+    encoded_columns = [
+        'age', 'height_cm', 'weight_kg', 'bmi', 'duration_minutes', 'intensity',
+        'calories_burned', 'daily_steps', 'resting_heart_rate',
+        'blood_pressure_systolic', 'blood_pressure_diastolic',
+        'endurance_level', 'sleep_hours', 'stress_level', 'hydration_level',
+        'fitness_level', 'gender_F', 'gender_M', 'smoking_status_Current',
+        'smoking_status_Former', 'health_condition_Asthma',
+        'health_condition_Diabetes', 'health_condition_Hypertension'
+    ]
+    
+    # Create DataFrame for prediction
+    input_df = pd.DataFrame([model_input])[encoded_columns]
+    print(f"Fitness Input DataFrame shape: {input_df.shape}")
+    print(f"Fitness Input DataFrame:\n{input_df}")
+    
+    # Make prediction
+    prediction = model.predict(input_df)[0]
+    print(f"Fitness ML Model Prediction: {prediction}")
+    
+    # Return just the prediction number and basic info
     return {
-        "workout_days_per_week": 3,
-        "workout_duration": "45 min",
-        "weekly_schedule": {
-            "monday": {"type": "Upper Body", "exercises": ["Push-ups", "Pull-ups"]},
-            "wednesday": {"type": "Cardio", "exercises": ["Running", "Cycling"]},
-            "friday": {"type": "Lower Body", "exercises": ["Squats", "Lunges"]}
+        "ml_prediction": int(prediction),
+        "user_input_summary": {
+            "age": model_input['age'],
+            "weight": model_input['weight_kg'],
+            "height": model_input['height_cm'],
+            "bmi": round(model_input['bmi'], 2),
+            "gender": "Female" if model_input['gender_F'] else "Male",
+            "fitness_level": ["Beginner", "Intermediate", "Advanced"][model_input['fitness_level']],
+            "workout_duration": model_input['duration_minutes'],
+            "intensity": ["Low", "Moderate", "High"][model_input['intensity']],
+            "daily_steps": model_input['daily_steps'],
+            "sleep_hours": model_input['sleep_hours'],
+            "stress_level": model_input['stress_level'],
+            # Additional attributes
+            "hydration_level": model_input['hydration_level'],
+            "resting_heart_rate": model_input['resting_heart_rate'],
+            "blood_pressure": {
+                "systolic": model_input['blood_pressure_systolic'],
+                "diastolic": model_input['blood_pressure_diastolic']
+            },
+            "endurance_level": ["Low", "Average", "High"][model_input['endurance_level']],
+            "calories_burned": model_input['calories_burned'],
+            "smoking_status": "Current" if model_input['smoking_status_Current'] else 
+                            "Former" if model_input['smoking_status_Former'] else 
+                            "Non-smoker",
+            "health_conditions": {
+                "asthma": bool(model_input['health_condition_Asthma']),
+                "diabetes": bool(model_input['health_condition_Diabetes']),
+                "hypertension": bool(model_input['health_condition_Hypertension'])
+            }
         },
-        "recommendations": ["Start with lighter weights", "Focus on proper form"]
+        "model_info": {
+            "model_type": str(type(model).__name__),
+            "features_count": len(encoded_columns)
+        }
     }
 
 def format_plan_response(plan: dict, plan_type: str) -> str:
@@ -289,5 +573,27 @@ Model Information:
         
         return response
     
-    else:  # fitness
-        return f"""Fitness Plan: {plan['workout_days_per_week']} days per week"""
+    elif plan_type == "fitness":
+        response = f"""ML Model Prediction: {plan['ml_prediction']}
+
+User Profile:
+• Age: {plan['user_input_summary']['age']} years
+• Gender: {plan['user_input_summary']['gender']}
+• Weight: {plan['user_input_summary']['weight']} kg
+• Height: {plan['user_input_summary']['height']} cm
+• BMI: {plan['user_input_summary']['bmi']}
+• Fitness Level: {plan['user_input_summary']['fitness_level']}
+• Workout Duration: {plan['user_input_summary']['workout_duration']} minutes
+• Intensity: {plan['user_input_summary']['intensity']}
+• Daily Steps: {plan['user_input_summary']['daily_steps']}
+• Sleep Hours: {plan['user_input_summary']['sleep_hours']}
+• Stress Level: {plan['user_input_summary']['stress_level']}/10
+
+Model Information:
+• Model Type: {plan['model_info']['model_type']}
+• Features Used: {plan['model_info']['features_count']}"""
+        
+        return response
+    
+    else:
+        return f"Unknown plan type: {plan_type}"

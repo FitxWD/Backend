@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from typing import List, Dict, Any
+from typing import Dict, List, Any, Optional
 from app.deps.auth import verify_firebase_token
 from app.config import db
 from app.api.v1.schemas.user import ProfileUpdate, WorkoutPlan, DietPlan, PlanAcceptanceRequest
@@ -147,4 +147,156 @@ def accept_plan(request: PlanAcceptanceRequest, user=Depends(verify_firebase_tok
         raise HTTPException(
             status_code=500,
             detail=f"Error updating plan acceptance: {str(e)}"
+        )
+
+@router.get("/plan-history")
+def get_plan_history(user=Depends(verify_firebase_token)) -> Dict[str, Any]:
+    """
+    Get user's complete plan history for both diet and fitness plans.
+    Returns attempts sorted by timestamp in descending order.
+    """
+    try:
+        uid = user["uid"]
+        
+        # Get diet plans history
+        diet_plans_ref = db.collection("users").document(uid)\
+                          .collection("plans").document("diet")
+        diet_doc = diet_plans_ref.get()
+        
+        # Get fitness plans history
+        fitness_plans_ref = db.collection("users").document(uid)\
+                             .collection("plans").document("fitness")
+        fitness_doc = fitness_plans_ref.get()
+        
+        # Initialize response structure
+        plan_history = {
+            "diet_plans": [],
+            "fitness_plans": [],
+            "current_plans": {}
+        }
+        
+        # Process diet plans
+        if diet_doc.exists:
+            diet_data = diet_doc.to_dict()
+            attempts = diet_data.get("attempts", {})
+            diet_plans = [
+                {
+                    "attempt_number": int(attempt_num),
+                    **attempt_data
+                }
+                for attempt_num, attempt_data in attempts.items()
+            ]
+            # Sort by timestamp descending
+            diet_plans.sort(key=lambda x: x["timestamp"], reverse=True)
+            plan_history["diet_plans"] = diet_plans
+            
+        # Process fitness plans
+        if fitness_doc.exists:
+            fitness_data = fitness_doc.to_dict()
+            attempts = fitness_data.get("attempts", {})
+            fitness_plans = [
+                {
+                    "attempt_number": int(attempt_num),
+                    **attempt_data
+                }
+                for attempt_num, attempt_data in attempts.items()
+            ]
+            # Sort by timestamp descending
+            fitness_plans.sort(key=lambda x: x["timestamp"], reverse=True)
+            plan_history["fitness_plans"] = fitness_plans
+            
+        # Get current active plans
+        user_doc = db.collection("users").document(uid).get()
+        if user_doc.exists:
+            user_data = user_doc.to_dict()
+            plan_history["current_plans"] = {
+                "diet": user_data.get("currentDietPlan"),
+                "fitness": user_data.get("currentWorkoutPlan")
+            }
+        
+        return plan_history
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error fetching plan history: {str(e)}"
+        )
+
+@router.get("/current-plans")
+def get_current_plans(user=Depends(verify_firebase_token)) -> Dict[str, Any]:
+    """
+    Get user's current active diet and fitness plans with detailed information.
+    Returns comprehensive plan details for frontend display.
+    """
+    try:
+        uid = user["uid"]
+        user_doc = db.collection("users").document(uid).get()
+        
+        if not user_doc.exists:
+            return {
+                "diet": None,
+                "fitness": None,
+                "has_active_plans": False,
+                "last_updated": None
+            }
+            
+        user_data = user_doc.to_dict()
+        current_diet = user_data.get("currentDietPlan")
+        current_workout = user_data.get("currentWorkoutPlan")
+        
+        # Fetch detailed diet plan information
+        diet_details = None
+        if current_diet and current_diet.get("plan_id"):
+            diet_doc = db.collection("dietPlans").document(current_diet["plan_id"]).get()
+            if diet_doc.exists:
+                plan_data = diet_doc.to_dict()
+                diet_details = {
+                    **current_diet,
+
+                    "calorie_range": plan_data.get("calorie_range"),
+                    "macro_targets": {
+                        "carbs_g": plan_data.get("macro_targets", {}).get("carbs_g"),
+                        "fat_g": plan_data.get("macro_targets", {}).get("fat_g"),
+                        "protein_g": plan_data.get("macro_targets", {}).get("protein_g")
+                    },
+                    "notes": plan_data.get("notes")
+                }
+        
+        # Fetch detailed workout plan information
+        workout_details = None
+        if current_workout and current_workout.get("plan_id"):
+            workout_doc = db.collection("workoutPlans").document(current_workout["plan_id"]).get()
+            if workout_doc.exists:
+                plan_data = workout_doc.to_dict()
+                workout_details = {
+                    **current_workout,
+                    "name": plan_data.get("name"),
+                    "level": plan_data.get("level"),
+                    "description": plan_data.get("description"),
+                    "durationMinutes": plan_data.get("durationMinutes", 60),
+                }
+        
+        # Calculate last_updated safely
+        diet_updated = current_diet.get("accepted_at") if current_diet else None
+        workout_updated = current_workout.get("accepted_at") if current_workout else None
+        
+        last_updated = None
+        if diet_updated and workout_updated:
+            last_updated = max(diet_updated, workout_updated)
+        elif diet_updated:
+            last_updated = diet_updated
+        elif workout_updated:
+            last_updated = workout_updated
+        
+        return {
+            "diet": diet_details,
+            "fitness": workout_details,
+            "has_active_plans": bool(diet_details or workout_details),
+            "last_updated": last_updated
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error fetching current plans: {str(e)}"
         )
