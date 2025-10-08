@@ -114,3 +114,42 @@ class FeedbackResponse(BaseModel):
     text: str
     createdAt: str
     status: FeedbackStatus
+
+class FeedbackCountStats(BaseModel):
+    new: int
+    reviewed: int
+    total: int
+
+class RecentFeedback(BaseModel):
+    id: str
+    text: str
+    rating: int
+    userEmail: str
+
+class RecentUser(BaseModel):
+    uid: str
+    email: str
+    createdAt: datetime
+
+class DailyGrowth(BaseModel):
+    date: str
+    count: int
+
+class RecentPlan(BaseModel):
+    id: str
+    name: str
+    type: str # 'diet' or 'workout'
+    lastEdited: datetime
+
+class DashboardStats(BaseModel):
+    totalUsers: int
+    newUsersToday: int
+    feedbackCounts: FeedbackCountStats
+    totalWorkoutPlans: int
+    totalDietPlans: int
+    workoutPlansEditedToday: int  
+    dietPlansEditedToday: int    
+    recentlyEditedPlans: List[RecentPlan]
+    recentFeedbacks: List[RecentFeedback]
+    recentUsers: List[RecentUser]
+    userGrowthLast7Days: List[DailyGrowth]
