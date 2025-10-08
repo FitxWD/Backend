@@ -303,17 +303,22 @@ def transform_fitness_answers_to_model_input(user_answers: dict) -> dict:
     features['blood_pressure_diastolic'] = diastolic_bp if diastolic_bp > 0 else 80
     print(f"Debug - Diastolic BP: {diastolic_bp}")
     
-    # Q10: Fitness level - "How would you describe your overall fitness level — beginner, intermediate, or advanced?"
+    # Q10: Fitness level - use representative numeric value (not 0/1/2)
     fitness_level = user_answers.get("Q10", "").lower()
+    fitness_bins = {
+        "beginner": 3.5185345025263106,
+        "intermediate": 10.509214058636523,
+        "advanced": 16.57287187522573
+    }
     if "beginner" in fitness_level:
-        features['fitness_level'] = 0
+        features['fitness_level'] = fitness_bins["beginner"]
     elif "intermediate" in fitness_level:
-        features['fitness_level'] = 1
+        features['fitness_level'] = fitness_bins["intermediate"]
     elif "advanced" in fitness_level:
-        features['fitness_level'] = 2
+        features['fitness_level'] = fitness_bins["advanced"]
     else:
-        features['fitness_level'] = 0  # Default to beginner
-    print(f"Debug - Fitness level: {fitness_level}, mapped to: {features['fitness_level']}")
+        features['fitness_level'] = fitness_bins["beginner"]
+    print(f"Debug - Fitness level: {fitness_level}, mapped value: {features['fitness_level']}")
     
     # Q11: Workout duration - "Have you done any workouts? If so, on average, how long do your workout sessions last? (in minutes)"
     workout_duration = extract_number(user_answers.get("Q11", "30"))
@@ -332,17 +337,22 @@ def transform_fitness_answers_to_model_input(user_answers: dict) -> dict:
         features['intensity'] = 1  # Default to moderate
     print(f"Debug - Intensity: {intensity}, mapped to: {features['intensity']}")
     
-    # Q13: Endurance level - "How would you rate your endurance level — low, average, or high?"
+    # Q13: Endurance level - use representative numeric value (not 0/1/2)
     endurance = user_answers.get("Q13", "").lower()
+    endurance_bins = {
+        "low": 7.08634417419755,
+        "average": 9.74383342115639,
+        "high": 12.386626194708358
+    }
     if "low" in endurance:
-        features['endurance_level'] = 0
-    elif "average" in endurance:
-        features['endurance_level'] = 1
+        features['endurance_level'] = endurance_bins["low"]
+    elif "average" in endurance or "medium" in endurance:
+        features['endurance_level'] = endurance_bins["average"]
     elif "high" in endurance:
-        features['endurance_level'] = 2
+        features['endurance_level'] = endurance_bins["high"]
     else:
-        features['endurance_level'] = 1  # Default to average
-    print(f"Debug - Endurance: {endurance}, mapped to: {features['endurance_level']}")
+        features['endurance_level'] = endurance_bins["average"]
+    print(f"Debug - Endurance: {endurance}, mapped value: {features['endurance_level']}")
     
     # Q14: Stress level - "On a scale of 1–10, how would you rate your current stress level?"
     stress_level = extract_number(user_answers.get("Q14", "5"))
@@ -376,7 +386,7 @@ def transform_fitness_answers_to_model_input(user_answers: dict) -> dict:
     # Basic METs calculation for moderate activity
     if features['duration_minutes'] > 0:
         # Estimate METs based on intensity: low=3, moderate=5, high=8
-        mets = {0: 3, 1: 5, 2: 8}.get(features['intensity'], 5)
+        mets = {0: 0.3, 1: 0.5, 2: 0.8}.get(features['intensity'], 5)
         # Calories = METs × weight (kg) × time (hours)
         hours = features['duration_minutes'] / 60
         estimated_calories = mets * features['weight_kg'] * hours
@@ -515,6 +525,29 @@ def generate_fitness_plan(user_answers: dict) -> dict:
     prediction = model.predict(input_df)[0]
     print(f"Fitness ML Model Prediction: {prediction}")
     
+    # Helper to convert representative numeric value back to label (nearest)
+    def label_from_value(value, mapping):
+        # mapping: {'label': numeric_value, ...}
+        try:
+            # choose label with minimum absolute difference
+            return min(mapping.keys(), key=lambda k: abs(mapping[k] - value))
+        except Exception:
+            return "Unknown"
+    
+    fitness_label_map = {"Beginner": 3.5185345025263106, "Intermediate": 10.509214058636523, "Advanced": 16.57287187522573}
+    endurance_label_map = {"Low": 7.08634417419755, "Average": 9.74383342115639, "High": 12.386626194708358}
+    
+    # Resolve labels from numeric bin values
+    fitness_label = label_from_value(model_input.get('fitness_level', fitness_label_map["Beginner"]), {k.lower(): v for k, v in fitness_label_map.items()})
+    # label_from_value expects lower-case keys mapping used above; convert back to display-case
+    fitness_label_display = fitness_label.capitalize() if isinstance(fitness_label, str) else "Unknown"
+    
+    endurance_label = label_from_value(model_input.get('endurance_level', endurance_label_map["Average"]), {k.lower(): v for k, v in endurance_label_map.items()})
+    endurance_display = endurance_label.capitalize() if isinstance(endurance_label, str) else "Unknown"
+    
+    # Determine gender display
+    gender_display = "Female" if model_input.get('gender_F') else ("Male" if model_input.get('gender_M') else "Other")
+    
     # Return just the prediction number and basic info
     return {
         "ml_prediction": int(prediction),
@@ -523,21 +556,20 @@ def generate_fitness_plan(user_answers: dict) -> dict:
             "weight": model_input['weight_kg'],
             "height": model_input['height_cm'],
             "bmi": round(model_input['bmi'], 2),
-            "gender": "Female" if model_input['gender_F'] else "Male",
-            "fitness_level": ["Beginner", "Intermediate", "Advanced"][model_input['fitness_level']],
+            "gender": gender_display,
+            "fitness_level": fitness_label_display,
             "workout_duration": model_input['duration_minutes'],
-            "intensity": ["Low", "Moderate", "High"][model_input['intensity']],
+            "intensity": ["Low", "Moderate", "High"][int(model_input['intensity'])] if model_input.get('intensity') is not None else "Moderate",
             "daily_steps": model_input['daily_steps'],
             "sleep_hours": model_input['sleep_hours'],
             "stress_level": model_input['stress_level'],
-            # Additional attributes
             "hydration_level": model_input['hydration_level'],
             "resting_heart_rate": model_input['resting_heart_rate'],
             "blood_pressure": {
                 "systolic": model_input['blood_pressure_systolic'],
                 "diastolic": model_input['blood_pressure_diastolic']
             },
-            "endurance_level": ["Low", "Average", "High"][model_input['endurance_level']],
+            "endurance_level": endurance_display,
             "calories_burned": model_input['calories_burned'],
             "smoking_status": "Current" if model_input['smoking_status_Current'] else 
                             "Former" if model_input['smoking_status_Former'] else 

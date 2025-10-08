@@ -1,5 +1,6 @@
 from .diet_questions import get_diet_questions
 from .fitness_questions import get_fitness_questions
+import re
 
 # Store conversation state for each plan type
 user_conversations = {}
@@ -23,7 +24,8 @@ def get_user_state(user_id, plan_type="diet"):
             "answers": {},
             "questions": questions,
             "plan_type": plan_type,
-            "greeted": False
+            "greeted": False,
+            "validation_attempts": 0  # Track validation attempts for current question
         }
         print(f"Created new conversation state for {key} with {len(questions)} questions")
         print(f"Plan type: {plan_type}, First question: {questions[0] if questions else 'None'}")
@@ -32,6 +34,115 @@ def get_user_state(user_id, plan_type="diet"):
         print(f"Existing plan_type: {user_conversations[key]['plan_type']}")
     
     return user_conversations[key]
+
+def get_question_validation_rules(question_index, plan_type):
+    """Define validation rules for each question"""
+    
+    if plan_type == "fitness":
+        fitness_rules = {
+            0: {"type": "number", "min": 16, "max": 100, "field": "age"},  # Age
+            1: {"type": "choice", "choices": ["male", "female", "other", "m", "f"], "field": "gender"},  # Gender
+            2: {"type": "number", "min": 100, "max": 250, "field": "height"},  # Height in cm
+            3: {"type": "number", "min": 30, "max": 300, "field": "weight"},  # Weight in kg
+            4: {"type": "number", "min": 0, "max": 24, "field": "sleep_hours"},  # Sleep hours
+            5: {"type": "number", "min": 0, "max": 10, "field": "water_intake"},  # Water intake in litres
+            6: {"type": "number", "min": 0, "max": 50000, "field": "daily_steps"},  # Daily steps
+            7: {"type": "number", "min": 40, "max": 150, "field": "resting_heart_rate", "optional": True},  # Resting HR (optional)
+            8: {"type": "number", "min": 80, "max": 200, "field": "systolic_bp", "optional": True},  # Systolic BP (optional)
+            9: {"type": "number", "min": 50, "max": 130, "field": "diastolic_bp", "optional": True},  # Diastolic BP (optional)
+            10: {"type": "choice", "choices": ["beginner", "intermediate", "advanced"], "field": "fitness_level"},
+            11: {"type": "number", "min": 0, "max": 180, "field": "workout_duration"},  # Duration (0 for no workouts)
+            12: {"type": "choice", "choices": ["low", "moderate", "high"], "field": "intensity"},
+            13: {"type": "choice", "choices": ["low", "average", "high"], "field": "endurance"},
+            14: {"type": "number", "min": 1, "max": 10, "field": "stress_level"},  # Stress level 1-10
+            15: {"type": "choice", "choices": ["current smoker", "former smoker", "non-smoker"], "field": "smoking"},
+            16: {"type": "text", "field": "health_conditions"}  # Health conditions - free text
+        }
+        return fitness_rules.get(question_index)
+    
+    else:  # diet
+        diet_rules = {
+            0: {"type": "number", "min": 16, "max": 100, "field": "age"},  # Age
+            1: {"type": "choice", "choices": ["male", "female", "other", "m", "f"], "field": "gender"},  # Gender
+            2: {"type": "number", "min": 100, "max": 250, "field": "height"},  # Height in cm
+            3: {"type": "number", "min": 30, "max": 300, "field": "weight"},  # Weight in kg
+            4: {"type": "text", "field": "health_conditions"},  # Health conditions - free text
+            5: {"type": "choice", "choices": ["mild", "moderate", "severe"], "field": "condition_severity"},  # Severity
+            6: {"type": "choice", "choices": ["sedentary", "moderate", "active"], "field": "activity_level"},
+            7: {"type": "number", "min": 100, "max": 400, "field": "cholesterol_level", "optional": True},  # Cholesterol (optional)
+            8: {"type": "text", "field": "blood_pressure", "optional": True},  # Blood pressure (optional, format varies)
+            9: {"type": "number", "min": 60, "max": 400, "field": "glucose_level", "optional": True},  # Glucose (optional)
+            10: {"type": "text", "field": "dietary_restrictions"},  # Dietary restrictions - free text
+            11: {"type": "text", "field": "food_allergies"},  # Food allergies - free text
+            12: {"type": "choice", "choices": ["mexican", "indian", "chinese", "italian"], "field": "cuisine_preference"},
+            13: {"type": "number", "min": 0, "max": 50, "field": "exercise_hours_per_week"}  # Exercise hours per week
+        }
+        return diet_rules.get(question_index)
+    
+    return None
+
+def validate_answer(answer, validation_rule):
+    """Validate user answer against rules"""
+    if not validation_rule:
+        return True, answer, ""  # No validation needed
+    
+    answer_clean = answer.strip().lower()
+    rule_type = validation_rule["type"]
+    field = validation_rule["field"]
+    is_optional = validation_rule.get("optional", False)
+    
+    # Handle optional fields - accept "don't know", "not sure", "no", etc.
+    if is_optional:
+        optional_responses = [
+            "don't know", "dont know", "not sure", "unsure", "no", "none", 
+            "i don't know", "i dont know", "i'm not sure", "im not sure",
+            "no idea", "not available", "n/a", "na", "unknown", "unclear",
+            "that's fine", "thats fine", "no worries", "that's okay", "thats okay"
+        ]
+        if any(resp in answer_clean for resp in optional_responses):
+            return True, "unknown", ""
+    
+    if rule_type == "number":
+        # Extract number from text
+        numbers = re.findall(r'\d+\.?\d*', answer)
+        if not numbers:
+            if is_optional:
+                return True, "unknown", ""
+            return False, answer, f"Please provide a number for {field}."
+        
+        try:
+            number = float(numbers[0])
+            min_val = validation_rule.get("min", float('-inf'))
+            max_val = validation_rule.get("max", float('inf'))
+            
+            if number < min_val or number > max_val:
+                return False, answer, f"Please provide a {field} between {min_val} and {max_val}."
+            
+            # Return the number as string for consistency
+            return True, str(number), ""
+            
+        except ValueError:
+            return False, answer, f"Please provide a valid number for {field}."
+    
+    elif rule_type == "choice":
+        choices = validation_rule["choices"]
+        # Check if answer contains any of the valid choices
+        # Prefer whole-word matches and favor longer choices (so "female" doesn't match "male")
+        for choice in sorted(choices, key=lambda x: -len(x)):
+            pattern = r'\b' + re.escape(choice.lower()) + r'\b'
+            if re.search(pattern, answer_clean):
+                return True, choice, ""  # Return the matched choice
+        
+        choices_str = ", ".join(choices)
+        return False, answer, f"Please choose from: {choices_str}"
+    
+    elif rule_type == "text":
+        # Text answers are always valid, but check if not empty
+        if len(answer.strip()) == 0:
+            return False, answer, f"Please provide an answer for {field}."
+        return True, answer, ""
+    
+    return True, answer, ""
 
 def is_side_question(user_text):
     """Detect if user is asking a side question instead of answering"""
@@ -175,6 +286,7 @@ def get_next_prompt(user_text, user_id, plan_type="diet", llm_answer_func=None):
     
     print(f"Current state - Index: {state['current_index']}, Total questions: {len(questions)}")
     print(f"Greeted: {state.get('greeted', False)}")
+    print(f"Validation attempts: {state.get('validation_attempts', 0)}")
     
     # Handle initial greeting
     if state["current_index"] == -1 and not state.get("greeted", False):
@@ -202,6 +314,7 @@ def get_next_prompt(user_text, user_id, plan_type="diet", llm_answer_func=None):
         if any(word in user_lower for word in confirmation_words):
             # User confirmed, start with first question
             state["current_index"] = 0
+            state["validation_attempts"] = 0
             current_question = questions[0]
             print(f"User confirmed, starting with first question: {current_question}")
             return current_question
@@ -225,10 +338,46 @@ def get_next_prompt(user_text, user_id, plan_type="diet", llm_answer_func=None):
             current_question = questions[state["current_index"]]
             return f"{side_answer}\n\nNow, let's get back to your plan. {current_question}"
         
-        # Store the answer for the current question
+        # Validate the answer
+        validation_rule = get_question_validation_rules(state["current_index"], plan_type)
+        is_valid, validated_answer, error_message = validate_answer(user_text, validation_rule)
+        
+        if not is_valid:
+            print(f"❌ Invalid answer: {error_message}")
+            
+            # Increment validation attempts
+            state["validation_attempts"] = state.get("validation_attempts", 0) + 1
+            
+            # Provide different messages based on attempts
+            if state["validation_attempts"] == 1:
+                return f"{error_message} Please try again."
+            elif state["validation_attempts"] == 2:
+                return f"{error_message} Let me ask again: {questions[state['current_index']]}"
+            elif state["validation_attempts"] >= 3:
+                # After 3 attempts, provide more detailed help
+                current_question = questions[state["current_index"]]
+                if validation_rule["type"] == "number":
+                    min_val = validation_rule.get("min", "any")
+                    max_val = validation_rule.get("max", "any")
+                    return f"{error_message} Please provide just a number between {min_val} and {max_val}. For example: '25' or 'twenty-five'. Let me ask again: {current_question}"
+                elif validation_rule["type"] == "choice":
+                    choices = ", ".join(validation_rule["choices"])
+                    return f"Please choose one of these options: {choices}. Let me ask again: {current_question}"
+                else:
+                    return f"{error_message} Let me ask again: {current_question}"
+            else:
+                return f"{error_message}"
+        
+        # Answer is valid - store it and move to next question
+        print(f"✅ Valid answer: {validated_answer}")
+        
+        # Store the validated answer
         question_key = f"Q{state['current_index']}"
-        state["answers"][question_key] = user_text
-        print(f"Stored answer for {question_key}: {user_text}")
+        state["answers"][question_key] = validated_answer
+        print(f"Stored answer for {question_key}: {validated_answer}")
+        
+        # Reset validation attempts for next question
+        state["validation_attempts"] = 0
 
         # Move to next question index
         next_index = state["current_index"] + 1
@@ -255,12 +404,12 @@ def get_next_prompt(user_text, user_id, plan_type="diet", llm_answer_func=None):
         if plan_type == "fitness":
             plan = generate_fitness_plan(user_answers)
             plan_text = format_plan_response(plan, "fitness")
-            return f"Thanks! I have all the information I need. {plan_text}"
+            return f"Thanks! I have all the information I need. Your personalized fitness plan is now being generated. PLease visit dashboard to view it."
         else:
             plan = generate_diet_plan(user_answers)
             plan_text = format_plan_response(plan, "diet")
-            return f"Thanks! I have all the information I need. {plan_text}"
-    
+            return f"Thanks! I have all the information I need. Your personalized diet plan is now being generated. Please visit dashboard to view it."
+
     # Fallback - shouldn't reach here
     return "I'm sorry, something went wrong. Please say 'hi' to start over."
 
