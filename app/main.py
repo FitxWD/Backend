@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.endpoints import users  
 from app.api.v1.endpoints import assistant
+from app.api.v1.endpoints import admin
 
 app = FastAPI(
     title="Wellness Assistant API",
@@ -26,6 +27,7 @@ app.add_middleware(
 # Include router
 app.include_router(users.router, prefix="/api/v1", tags=["users"])
 app.include_router(assistant.router, prefix="/api/v1", tags=["assistant"])
+app.include_router(admin.router, prefix="/api/v1/admin", tags=["admin"])
 
 @app.get("/")
 async def root():
