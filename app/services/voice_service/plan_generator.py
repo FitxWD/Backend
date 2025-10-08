@@ -446,7 +446,36 @@ def generate_diet_plan(user_answers: dict) -> dict:
             "height": model_input['Height_cm'],
             "bmi": round(model_input['BMI'], 2),
             "gender": "Female" if model_input['Gender_Female'] else "Male",
-            "calories": model_input['Calculated_Calorie_Intake']
+            "calories": model_input['Calculated_Calorie_Intake'],
+            # Additional attributes
+            "severity": ["Mild", "Moderate", "Severe"][model_input['Severity']],
+            "activity_level": ["Sedentary", "Moderate", "Active"][model_input['Physical_Activity_Level']],
+            "cholesterol": model_input['Cholesterol_mg/dL'],
+            "blood_pressure": model_input['Blood_Pressure_mmHg'],
+            "glucose": model_input['Glucose_mg/dL'],
+            "exercise_hours": model_input['Weekly_Exercise_Hours'],
+            "health_conditions": {
+                "diabetes": bool(model_input['Disease_Type_Diabetes']),
+                "hypertension": bool(model_input['Disease_Type_Hypertension']),
+                "obesity": bool(model_input['Disease_Type_Obesity'])
+            },
+            "dietary_restrictions": {
+                "low_sodium": bool(model_input['Dietary_Restrictions_Low_Sodium']),
+                "low_sugar": bool(model_input['Dietary_Restrictions_Low_Sugar'])
+            },
+            "allergies": {
+                "gluten": bool(model_input['Allergies_Gluten']),
+                "peanuts": bool(model_input['Allergies_Peanuts'])
+            },
+            "cuisine_preference": next(
+                (cuisine for cuisine, value in {
+                    "Chinese": model_input['Preferred_Cuisine_Chinese'],
+                    "Indian": model_input['Preferred_Cuisine_Indian'],
+                    "Italian": model_input['Preferred_Cuisine_Italian'],
+                    "Mexican": model_input['Preferred_Cuisine_Mexican']
+                }.items() if value),
+                "None"
+            )
         },
         "model_info": {
             "model_type": str(type(model).__name__),
@@ -500,7 +529,24 @@ def generate_fitness_plan(user_answers: dict) -> dict:
             "intensity": ["Low", "Moderate", "High"][model_input['intensity']],
             "daily_steps": model_input['daily_steps'],
             "sleep_hours": model_input['sleep_hours'],
-            "stress_level": model_input['stress_level']
+            "stress_level": model_input['stress_level'],
+            # Additional attributes
+            "hydration_level": model_input['hydration_level'],
+            "resting_heart_rate": model_input['resting_heart_rate'],
+            "blood_pressure": {
+                "systolic": model_input['blood_pressure_systolic'],
+                "diastolic": model_input['blood_pressure_diastolic']
+            },
+            "endurance_level": ["Low", "Average", "High"][model_input['endurance_level']],
+            "calories_burned": model_input['calories_burned'],
+            "smoking_status": "Current" if model_input['smoking_status_Current'] else 
+                            "Former" if model_input['smoking_status_Former'] else 
+                            "Non-smoker",
+            "health_conditions": {
+                "asthma": bool(model_input['health_condition_Asthma']),
+                "diabetes": bool(model_input['health_condition_Diabetes']),
+                "hypertension": bool(model_input['health_condition_Hypertension'])
+            }
         },
         "model_info": {
             "model_type": str(type(model).__name__),
