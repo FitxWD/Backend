@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, constr
 from typing import List, Optional, Union, Dict, Any
 from enum import Enum
 from datetime import datetime
@@ -88,3 +88,29 @@ class PlanAcceptanceRequest(BaseModel):
     plan_type: str
     user_id: str
     accepted: bool
+
+class FeedbackPayload(BaseModel):
+    planId: str
+    rating: int = Field(..., ge=1, le=5, description="Rating must be an integer between 1 and 5")
+    text: Optional[str] = Field(..., min_length=1, max_length=2000, description="Text must not be empty")
+
+class FeedbackStatus(str, Enum):
+    new = "new"
+    reviewed = "reviewed" # Changed from "revised" for clarity
+
+class UpdateStatusPayload(BaseModel):
+    status: FeedbackStatus
+
+class UserInfo(BaseModel):
+    uid: str
+    email: Optional[str] = None
+    displayName: Optional[str] = None
+
+class FeedbackResponse(BaseModel):
+    id: str  # The document ID
+    user: UserInfo
+    planId: str
+    rating: int
+    text: str
+    createdAt: str
+    status: FeedbackStatus

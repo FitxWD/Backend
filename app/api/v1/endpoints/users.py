@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Dict, List, Any, Optional
 from app.deps.auth import verify_firebase_token
 from app.config import db
-from app.api.v1.schemas.user import ProfileUpdate, WorkoutPlan, DietPlan, PlanAcceptanceRequest
+from app.api.v1.schemas.user import ProfileUpdate, WorkoutPlan, DietPlan, PlanAcceptanceRequest, FeedbackPayload, FeedbackResponse, FeedbackStatus, UpdateStatusPayload
 from datetime import datetime
-from firebase_admin import auth
+from firebase_admin import auth, firestore
 
 
 router = APIRouter()
@@ -340,3 +340,117 @@ def set_custom_claim(user=Depends(verify_firebase_token)) -> Dict[str, Any]:
             status_code=500,
             detail=f"Error checking admin status: {str(e)}"
         )
+
+@router.post("/feedback")
+def submit_feedback(
+    payload: FeedbackPayload, 
+    user: Dict[str, Any] = Depends(verify_firebase_token)
+) -> Dict[str, str]:
+    """
+    Receives and stores user feedback for a specific plan.
+    """
+    try:
+        uid = user["uid"]
+        
+        # The data is already validated by the FeedbackPayload model
+        feedback_data = {
+            "userId": uid,
+            "planId": payload.planId,
+            "rating": payload.rating,
+            "text": payload.text,
+            "createdAt": datetime.utcnow().isoformat() + "Z", # Use UTC time,
+            "status": "new" 
+        }
+        
+        # Get the feedback collection and add a new document
+        feedback_collection = db.collection("feedbacks")
+        feedback_collection.add(feedback_data)
+        
+        return {"message": "Feedback submitted successfully"}
+        
+    except Exception as e:
+        print(f"Feedback submission error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"An internal error occurred while saving feedback: {str(e)}"
+        )
+
+@router.get("/admin/feedbacks", response_model=List[FeedbackResponse])
+def get_all_feedbacks(
+    status: Optional[FeedbackStatus] = Query(None, description="Filter feedbacks by status"),
+    user: Dict[str, Any] = Depends(verify_firebase_token)
+) -> List[FeedbackResponse]:
+    """
+    Fetches user feedbacks. Admin access is verified at the start of the function.
+    """
+    if not user.get("isAdmin"):
+        raise HTTPException(status_code=403, detail="Forbidden: User is not an administrator")
+    
+    try:
+        # --- FIX 1: Use the correct collection name 'feedbacks' (plural) ---
+        query = db.collection("feedbacks") 
+        
+        if status:
+            query = query.where("status", "==", status)
+        
+        docs = query.order_by("createdAt", direction=firestore.Query.DESCENDING).stream()
+        
+        response_data = []
+        for doc in docs:
+            feedback = doc.to_dict()
+            user_info = {"uid": feedback.get("userId")}
+            
+            try:
+                user_record = auth.get_user(feedback.get("userId"))
+                user_info["email"] = user_record.email
+                user_info["displayName"] = user_record.display_name
+            except auth.UserNotFoundError:
+                user_info["email"] = "Deleted User"
+
+            # --- FIX 2: Explicitly map fields instead of using **feedback ---
+            # This avoids the error by not passing the unexpected 'userId' field.
+            response_data.append(
+                FeedbackResponse(
+                    id=doc.id,
+                    user=user_info,
+                    planId=feedback.get("planId"),
+                    rating=feedback.get("rating"),
+                    text=feedback.get("text"),
+                    createdAt=feedback.get("createdAt"),
+                    status=feedback.get("status")
+                )
+            )
+            
+        return response_data
+            
+    except Exception as e:
+        # It's helpful to print the error for debugging
+        print(f"Error in get_all_feedbacks: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch feedbacks: {e}")
+
+@router.put("/admin/feedback/{feedback_id}/status")
+def update_feedback_status(
+    feedback_id: str,
+    payload: UpdateStatusPayload,
+    user: Dict[str, Any] = Depends(verify_firebase_token)
+) -> Dict[str, str]:
+    """
+    Updates a feedback's status. Admin access is verified at the start of the function.
+    """
+    if not user.get("isAdmin"):
+        raise HTTPException(status_code=403, detail="Forbidden: User is not an administrator")
+
+    try:
+        # --- FIX 1 (Applied here too): Use the correct collection name 'feedbacks' ---
+        feedback_doc_ref = db.collection("feedbacks").document(feedback_id)
+        
+        if not feedback_doc_ref.get().exists:
+            raise HTTPException(status_code=404, detail="Feedback not found")
+        
+        feedback_doc_ref.update({"status": payload.status})
+        
+        return {"message": "Feedback status updated successfully"}
+    
+    except Exception as e:
+        print(f"Error in update_feedback_status: {e}")
+        raise HTTPException(status_code=500, detail=f"An internal error occurred: {e}")
