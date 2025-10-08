@@ -4,6 +4,7 @@ from app.deps.auth import verify_firebase_token
 from app.config import db
 from app.api.v1.schemas.user import ProfileUpdate, WorkoutPlan, DietPlan, PlanAcceptanceRequest
 from datetime import datetime
+from firebase_admin import auth
 
 
 router = APIRouter()
@@ -299,4 +300,43 @@ def get_current_plans(user=Depends(verify_firebase_token)) -> Dict[str, Any]:
         raise HTTPException(
             status_code=500,
             detail=f"Error fetching current plans: {str(e)}"
+        )
+
+@router.post("/set-custom-claim")
+def set_custom_claim(user=Depends(verify_firebase_token)) -> Dict[str, Any]:
+    """
+    Check user's custom status from Firestore and set Firebase claim accordingly.
+    Called after login to determine user role and redirect path.
+    """
+    try:
+        uid = user["uid"]
+        
+        # Check admin status from Firestore
+        user_doc = db.collection("users").document(uid).get()
+        
+        if not user_doc.exists:
+            raise HTTPException(
+                status_code=404,
+                detail="User document not found"
+            )
+            
+        user_data = user_doc.to_dict()
+        is_admin = user_data.get("isAdmin", False)
+        
+        # Set or update custom claims based on Firestore data
+        auth.set_custom_user_claims(uid, {
+            "isAdmin": is_admin,
+            "modifiedAt": datetime.utcnow().isoformat()
+        })
+
+        return {
+            "status": "success",
+            "isAdmin": is_admin,  # Return flag for frontend routing
+            "uid": uid,
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error checking admin status: {str(e)}"
         )
