@@ -47,6 +47,7 @@ class WorkoutPlan(BaseModel):
     micro_workouts: List[MicroWorkout]
     progression_4_weeks: List[str]
     personalization_rules: List[str]
+    lastEdited: datetime
 
 class MacroTargets(BaseModel):
     carbs_g: int
