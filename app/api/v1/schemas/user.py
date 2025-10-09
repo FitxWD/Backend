@@ -159,3 +159,13 @@ class DietPlanUpdate(BaseModel):
     macro_targets: MacroTargets
     notes: str
     days: List[DailyDiet]
+
+class UserAdminView(BaseModel):
+    uid: str
+    email: Optional[str] = None
+    displayName: Optional[str] = None
+    isAdmin: bool = False
+    creationTime: str
+
+class UpdateAdminStatusPayload(BaseModel):
+    isAdmin: bool
