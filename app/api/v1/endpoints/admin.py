@@ -3,7 +3,7 @@ from firebase_admin import auth, firestore
 from typing import Dict, List, Any, Optional
 from app.deps.auth import verify_firebase_token
 from app.config import db
-from app.api.v1.schemas.user import WorkoutPlan, DietPlan, DietPlanUpdate, FeedbackResponse, FeedbackStatus, UpdateStatusPayload, DashboardStats, FeedbackCountStats, RecentPlan, RecentFeedback, RecentUser, DailyGrowth
+from app.api.v1.schemas.user import WorkoutPlan, DietPlan, DietPlanUpdate, FeedbackResponse, FeedbackStatus, UpdateStatusPayload, DashboardStats, FeedbackCountStats, RecentPlan, RecentFeedback, RecentUser, DailyGrowth, UserAdminView, UpdateAdminStatusPayload
 from datetime import datetime, timedelta
 
 router = APIRouter()
@@ -379,3 +379,100 @@ def update_diet_plan(
     except Exception as e:
         print(f"Error updating diet plan: {e}")
         raise HTTPException(status_code=500, detail=f"An internal error occurred: {e}")
+    
+@router.get("/users", response_model=List[UserAdminView])
+def get_all_users():
+    """
+    Fetches a list of all Firebase users, including their admin status.
+    Admin access is already verified by the router dependency.
+    """
+    try:
+        all_users = []
+        # auth.list_users() is the most efficient way to get all users
+        for user_record in auth.list_users().iterate_all():
+            claims = user_record.custom_claims or {}
+            all_users.append(
+                UserAdminView(
+                    uid=user_record.uid,
+                    email=user_record.email,
+                    displayName=user_record.display_name,
+                    isAdmin=claims.get("isAdmin", False),
+                    # Convert ms timestamp to ISO string for the frontend
+                    creationTime=datetime.utcfromtimestamp(user_record.user_metadata.creation_timestamp / 1000).isoformat() + "Z"
+                )
+            )
+        # Sort by creation time, newest first
+        all_users.sort(key=lambda x: x.creationTime, reverse=True)
+        return all_users
+    except Exception as e:
+        print(f"Error fetching users: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch user list.")
+
+@router.put("/users/{user_id}/status")
+def update_user_admin_status(
+    user_id: str,
+    payload: UpdateAdminStatusPayload,
+    # We need the current admin's token to prevent self-demotion
+    admin_user: Dict[str, Any] = Depends(verify_firebase_token)
+):
+    """
+    Updates a user's 'isAdmin' status in both Firestore and Firebase Auth claims.
+    Prevents an admin from demoting themselves.
+    """
+    # CRUCIAL SAFETY CHECK: Prevent an admin from revoking their own admin rights
+    if admin_user["uid"] == user_id and not payload.isAdmin:
+        raise HTTPException(
+            status_code=400,
+            detail="Admins cannot revoke their own admin status."
+        )
+
+    try:
+        # Step 1: Update the custom claim in Firebase Auth (for security)
+        auth.set_custom_user_claims(user_id, {"isAdmin": payload.isAdmin})
+        
+        # Step 2: Update the 'source of truth' in the Firestore document (for consistency)
+        user_doc_ref = db.collection("users").document(user_id)
+        if user_doc_ref.get().exists:
+            user_doc_ref.update({"isAdmin": payload.isAdmin})
+        
+        return {"message": "User admin status updated successfully."}
+        
+    except Exception as e:
+        print(f"Error updating user status for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update user status.")
+    
+@router.delete("/users/{user_id}")
+def delete_user(
+    user_id: str,
+    # We still need the admin's token to verify they are an admin
+    # and to prevent self-deletion
+    admin_user: Dict[str, Any] = Depends(verify_firebase_token)
+):
+    """
+    Deletes a user from Firebase Authentication.
+    This is a permanent and irreversible action.
+    Prevents an admin from deleting their own account.
+    """
+    # CRUCIAL SAFETY CHECK: Prevent an admin from deleting themselves
+    if admin_user["uid"] == user_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Admins cannot delete their own account."
+        )
+
+    try:
+        # Delete the user from Firebase Authentication
+        auth.delete_user(user_id)
+        
+        # OPTIONAL: You could also delete their Firestore user document here
+        user_doc_ref = db.collection("users").document(user_id)
+        if user_doc_ref.get().exists:
+            user_doc_ref.delete()
+        
+        return {"message": "User deleted successfully from authentication."}
+        
+    except auth.UserNotFoundError:
+        raise HTTPException(status_code=404, detail="User not found in Firebase Authentication.")
+    except Exception as e:
+        print(f"Error deleting user {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete user.")
