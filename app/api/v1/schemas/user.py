@@ -154,3 +154,8 @@ class DashboardStats(BaseModel):
     recentFeedbacks: List[RecentFeedback]
     recentUsers: List[RecentUser]
     userGrowthLast7Days: List[DailyGrowth]
+
+class DietPlanUpdate(BaseModel):
+    macro_targets: MacroTargets
+    notes: str
+    days: List[DailyDiet]
