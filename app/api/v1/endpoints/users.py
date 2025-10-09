@@ -579,3 +579,37 @@ def get_dashboard_stats(user: Dict[str, Any] = Depends(verify_firebase_token)):
     except Exception as e:
         print(f"Error fetching enhanced dashboard stats: {e}")
         raise HTTPException(status_code=500, detail="Failed to aggregate dashboard statistics.")
+    
+@router.put("/admin/workout-plan/{plan_id}")
+def update_workout_plan(
+    plan_id: str,
+    plan_data: WorkoutPlan,
+    user: Dict[str, Any] = Depends(verify_firebase_token)
+) -> Dict[str, str]:
+    """
+    Updates a workout plan document. Admin access is required.
+    This endpoint automatically sets the 'lastEdited' timestamp.
+    """
+    if not user.get("isAdmin"):
+        raise HTTPException(status_code=403, detail="Forbidden: User is not an administrator")
+
+    try:
+        plan_ref = db.collection("workoutPlans").document(plan_id)
+        
+        if not plan_ref.get().exists:
+            raise HTTPException(status_code=404, detail="Workout plan not found")
+        
+        # Prepare the data, still excluding name and level to prevent them from being changed
+        update_data = plan_data.dict(by_alias=True, exclude={"name", "level"})
+        
+        # Set the lastEdited timestamp
+        update_data["lastEdited"] = datetime.utcnow()
+        
+        # --- THE FIX: Use .update() to modify existing fields without deleting others ---
+        plan_ref.update(update_data)
+        
+        return {"message": f"Workout plan '{plan_id}' updated successfully."}
+
+    except Exception as e:
+        print(f"Error updating workout plan: {e}")
+        raise HTTPException(status_code=500, detail=f"An internal error occurred: {e}")
