@@ -159,7 +159,7 @@ def get_all_feedbacks(
         print(f"Error in get_all_feedbacks: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch feedbacks: {e}")
 
-@router.put("feedback/{feedback_id}/status")
+@router.put("/feedback/{feedback_id}/status")
 def update_feedback_status(
     feedback_id: str,
     payload: UpdateStatusPayload,
