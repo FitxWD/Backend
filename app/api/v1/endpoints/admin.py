@@ -197,6 +197,8 @@ def get_dashboard_stats(user: Dict[str, Any] = Depends(verify_firebase_token)):
     try:
         # --- Time calculations ---
         now = datetime.utcnow()
+        today_start = datetime(now.year, now.month, now.day)
+        seven_days_ago = today_start - timedelta(days=6) # Start of the 7-day window
         yesterday = now - timedelta(days=1)
 
         # --- 1. Aggregate Counts (as before) ---
@@ -228,34 +230,40 @@ def get_dashboard_stats(user: Dict[str, Any] = Depends(verify_firebase_token)):
             recent_feedbacks.append(RecentFeedback(id=doc.id, text=fb.get("text"), rating=fb.get("rating"), userEmail=email))
             
         # --- 3. Get User Growth Data ---
-        now = datetime.utcnow()
-        today_start = datetime(now.year, now.month, now.day)
-        
-        # Recent Users (last 5 sign-ups) & Daily Growth for 7 days
+        # Get Recent Users (most efficient query)
+        recent_users_docs = db.collection("users").order_by("createdAt", direction=firestore.Query.DESCENDING).limit(5).stream()
         recent_users = []
-        daily_counts = { (today_start - timedelta(days=i)).strftime('%Y-%m-%d'): 0 for i in range(7) }
-        new_users_today = 0
-        
-        # auth.list_users() is efficient for getting all users
-        for user_record in auth.list_users().iterate_all():
-            # Timestamps from auth are in milliseconds
-            created_at_dt = datetime.utcfromtimestamp(user_record.user_metadata.creation_timestamp / 1000)
-            
-            # Add to recent users list
-            if len(recent_users) < 5:
-                recent_users.append(RecentUser(uid=user_record.uid, email=user_record.email, createdAt=created_at_dt))
-            
-            # Tally daily counts
-            if created_at_dt >= today_start:
-                new_users_today += 1
-            
-            date_str = created_at_dt.strftime('%Y-%m-%d')
-            if date_str in daily_counts:
-                daily_counts[date_str] += 1
+        for doc in recent_users_docs:
+            user_data = doc.to_dict()
+            recent_users.append(
+                RecentUser(
+                    uid=doc.id,
+                    email=user_data.get("email"),
+                    createdAt=user_data.get("createdAt")
+                )
+            )
 
-        # Sort recent_users by creation time
-        recent_users.sort(key=lambda x: x.createdAt, reverse=True)
+        # Get daily counts for the last 7 days
+        daily_counts = { (today_start - timedelta(days=i)).strftime('%Y-%m-%d'): 0 for i in range(7) }
+        
+        # Query for all users created in the last 7 days
+        users_last_7_days_query = db.collection("users").where("createdAt", ">=", seven_days_ago).stream()
+        
+        for doc in users_last_7_days_query:
+            user_data = doc.to_dict()
+            created_at = user_data.get("createdAt")
+            
+            # Ensure createdAt is a datetime object before formatting
+            if isinstance(created_at, datetime):
+                date_str = created_at.strftime('%Y-%m-%d')
+                if date_str in daily_counts:
+                    daily_counts[date_str] += 1
+        
         user_growth_last_7_days = [DailyGrowth(date=d, count=c) for d, c in sorted(daily_counts.items())]
+        
+        # Get count of new users today (more efficient than filtering in Python)
+        new_users_today_query = db.collection("users").where("createdAt", ">=", today_start).count()
+        new_users_today = new_users_today_query.get()[0][0].value
 
         # --- 4. Get Plan Generation Count (Proxy) ---
         # This is a proxy. A more accurate way would be to log generation events.
@@ -298,7 +306,7 @@ def get_dashboard_stats(user: Dict[str, Any] = Depends(verify_firebase_token)):
             newUsersToday=new_users_today,
             feedbackCounts=FeedbackCountStats(new=new_feedbacks_count, reviewed=reviewed_feedbacks_count, total=new_feedbacks_count + reviewed_feedbacks_count),
             totalWorkoutPlans=workout_plans_count,
-            totalDietPlans=diet_plans_count,#
+            totalDietPlans=diet_plans_count,
             workoutPlansEditedToday=workout_plans_edited_today,
             dietPlansEditedToday=diet_plans_edited_today,
             recentlyEditedPlans=recently_edited_plans,    
