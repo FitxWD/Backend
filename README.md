@@ -1,6 +1,6 @@
-# Voice Assistant Backend
+# Backend
 
-Instructions for setting up and running the voice assistant backend.
+Instructions for setting up and running backend.
 
 ## Prerequisites
 
@@ -11,63 +11,63 @@ Instructions for setting up and running the voice assistant backend.
 
 ### 1. Create Virtual Environment
 
-```bash
+bash
 python -m venv .venv
-```
+
 
 ### 2. Activate Virtual Environment
 
-**Windows:**
-```bash
+*Windows:*
+bash
 .venv\Scripts\activate
-```
 
-**macOS/Linux:**
-```bash
+
+*macOS/Linux:*
+bash
 source .venv/bin/activate
-```
+
 
 ### 3. Install Dependencies
 
-```bash
+bash
 pip install -r requirements.txt
-```
+
 
 ### 4. Install Whisper Model
 
 Choose one of the following options:
 
-**Option 1: Direct installation**
-```bash
+*Option 1: Direct installation*
+bash
 pip install git+https://github.com/openai/whisper.git
-```
 
-**Option 2: Follow official repository**
+
+*Option 2: Follow official repository*
 Visit [OpenAI Whisper Repository](https://github.com/openai/whisper) for detailed installation instructions.
 
 ### 5. Install FFmpeg
 
-**Windows (using Chocolatey):**
-```bash
+*Windows (using Chocolatey):*
+bash
 choco install ffmpeg
-```
 
-**macOS:**
-```bash
+
+*macOS:*
+bash
 brew install ffmpeg
-```
 
-**Linux:**
-```bash
+
+*Linux:*
+bash
 sudo apt update
 sudo apt install ffmpeg
-```
+
 
 ### 6. Run the Server
 
-```bash
+bash
 python -m app.main
-```
+
 
 ## Notes
 
@@ -77,46 +77,13 @@ python -m app.main
 
 ## Folder Structure
 
-```
+
+
 backend/
 ├── app/
-│   ├── __init__.py
-│   ├── main.py              # FastAPI entry point
-│   ├── config.py            # Configuration settings
-│   ├── api/
-│   │   ├── v1/
-│   │   │   ├── endpoints/
-│   │   │   │   ├── users.py     # User-related endpoints
-│   │   │   │   └── assistant.py # Assistant endpoints
-│   ├── services/
-│   │   ├── __init__.py
-│   │   ├── voice_service/
-│   │   │   ├── stt.py       # Speech-to-text service
-│   │   │   ├── llm.py       # Language model service
-│   │   │   └── tts.py       # Text-to-speech service
-│   └── utils/
-│       ├── __init__.py
-│       └── audio.py         # Audio processing utilities
-├── .env                     # Environment variables
+├── serviceAccountKey.json     
 └── requirements.txt         # Dependencies
-```
 
-## Troubleshooting
-
-### Common Issues
-
-1. **ImportError or ModuleNotFoundError**:
-   - Ensure you're running the server from the project root directory
-   - Verify that all packages are installed correctly
-   - Check if your virtual environment is activated
-
-2. **FFmpeg not found**:
-   - Ensure FFmpeg is installed and added to your system PATH
-   - Restart your terminal after installation
-
-3. **Whisper model issues**:
-   - Make sure you have sufficient disk space for model downloads
-   - Check your internet connection for initial model download
 
 ## API Documentation
 
