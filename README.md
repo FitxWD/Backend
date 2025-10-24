@@ -1,6 +1,6 @@
-# Voice Assistant Backend
+# Backend
 
-Instructions for setting up and running the voice assistant backend.
+Instructions for setting up and running backend.
 
 ## Prerequisites
 
@@ -80,43 +80,9 @@ python -m app.main
 ```
 backend/
 ├── app/
-│   ├── __init__.py
-│   ├── main.py              # FastAPI entry point
-│   ├── config.py            # Configuration settings
-│   ├── api/
-│   │   ├── v1/
-│   │   │   ├── endpoints/
-│   │   │   │   ├── users.py     # User-related endpoints
-│   │   │   │   └── assistant.py # Assistant endpoints
-│   ├── services/
-│   │   ├── __init__.py
-│   │   ├── voice_service/
-│   │   │   ├── stt.py       # Speech-to-text service
-│   │   │   ├── llm.py       # Language model service
-│   │   │   └── tts.py       # Text-to-speech service
-│   └── utils/
-│       ├── __init__.py
-│       └── audio.py         # Audio processing utilities
-├── .env                     # Environment variables
+├── serviceAccountKey.json     
 └── requirements.txt         # Dependencies
 ```
-
-## Troubleshooting
-
-### Common Issues
-
-1. **ImportError or ModuleNotFoundError**:
-   - Ensure you're running the server from the project root directory
-   - Verify that all packages are installed correctly
-   - Check if your virtual environment is activated
-
-2. **FFmpeg not found**:
-   - Ensure FFmpeg is installed and added to your system PATH
-   - Restart your terminal after installation
-
-3. **Whisper model issues**:
-   - Make sure you have sufficient disk space for model downloads
-   - Check your internet connection for initial model download
 
 ## API Documentation
 
