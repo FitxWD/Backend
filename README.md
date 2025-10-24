@@ -11,63 +11,63 @@ Instructions for setting up and running backend.
 
 ### 1. Create Virtual Environment
 
-bash
+```bash
 python -m venv .venv
-
+```
 
 ### 2. Activate Virtual Environment
 
-*Windows:*
-bash
+**Windows:**
+```bash
 .venv\Scripts\activate
+```
 
-
-*macOS/Linux:*
-bash
+**macOS/Linux:**
+```bash
 source .venv/bin/activate
-
+```
 
 ### 3. Install Dependencies
 
-bash
+```bash
 pip install -r requirements.txt
-
+```
 
 ### 4. Install Whisper Model
 
 Choose one of the following options:
 
-*Option 1: Direct installation*
-bash
+**Option 1: Direct installation**
+```bash
 pip install git+https://github.com/openai/whisper.git
+```
 
-
-*Option 2: Follow official repository*
+**Option 2: Follow official repository**
 Visit [OpenAI Whisper Repository](https://github.com/openai/whisper) for detailed installation instructions.
 
 ### 5. Install FFmpeg
 
-*Windows (using Chocolatey):*
-bash
+**Windows (using Chocolatey):**
+```bash
 choco install ffmpeg
+```
 
-
-*macOS:*
-bash
+**macOS:**
+```bash
 brew install ffmpeg
+```
 
-
-*Linux:*
-bash
+**Linux:**
+```bash
 sudo apt update
 sudo apt install ffmpeg
-
+```
 
 ### 6. Run the Server
 
-bash
+```bash
 python -m app.main
-
+```
 
 ## Notes
 
@@ -77,13 +77,12 @@ python -m app.main
 
 ## Folder Structure
 
-
-
+```
 backend/
 ├── app/
 ├── serviceAccountKey.json     
 └── requirements.txt         # Dependencies
-
+```
 
 ## API Documentation
 
